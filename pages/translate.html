@@ -1,0 +1,57 @@
+<template page>
+  <l-m src="@pui/select/select.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+    }
+    .container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      min-height: 400px;
+      font-size: 20px;
+    }
+
+    h4,
+    p {
+      margin: 0.25em 0;
+    }
+
+    p-select {
+      display: inline-block;
+      width: 150px;
+    }
+  </style>
+  <div class="container">
+    <h4>AI翻译功能</h4>
+    <p>
+      o-book会使用你本机的 ollama AI进行，请确保本机已经安装
+      <a target="_blank" href="https://ollama.com/">Ollama</a>
+    </p>
+
+    <p>请选择要翻译到什么语言：<p-select></p-select></p>
+  </div>
+
+  <script>
+    export const parent = "./layout.html";
+
+    import { EverCache } from "https://cdn.jsdelivr.net/gh/kirakiray/ever-cache@1.0.4/src/main.js";
+
+    const getStorage = (lang) => new EverCache(`translate-temps-${lang}`);
+
+    const storage = getStorage("en");
+
+    console.log("storage", storage);
+
+    export default async ({ load }) => {
+      return {
+        data: {},
+        proto: {},
+      };
+    };
+  </script>
+</template>

@@ -1,0 +1,146 @@
+<template page>
+  <l-m src="@pui/button/button.html"></l-m>
+  <l-m src="@pui/select/select.html"></l-m>
+  <l-m src="@pui/list/list.html"></l-m>
+  <l-m src="../comps/viewer.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+    }
+    .container {
+      height: 100%;
+      /* background-color: red; */
+    }
+    .start-con {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 200px 16px 0;
+      font-size: 22px;
+      text-align: center;
+    }
+    p {
+      font-size: 18px;
+      padding: 0 5vw;
+    }
+  </style>
+  <div class="container">
+    <x-if :value="stage == 0">
+      <div class="start-con">
+        <p>
+          这款webapp的所有操作均会在浏览器本地完成，不会上传到服务端，为你确保了数据的安全与隐私。
+          <br />
+          使用这个webapp，你无需掌握复杂的命令行代码，也无需在系统上安装任何软件，便能轻松生成美观且实用的文档静态站。
+          <br />
+          它为你提供了一个便捷、高效的文档生成解决方案，让你能够专注于内容创作，而无需分心于技术细节。
+        </p>
+
+        <p-button on:click="selectDir"> 选择文件夹 </p-button>
+      </div>
+    </x-if>
+    <x-else-if :value="stage == 1">
+      <o-page src="./init-project.html"></o-page>
+    </x-else-if>
+    <x-else-if :value="stage == 2">
+      <article-viewer
+        :lang="lang"
+        :lang-options="langOptions"
+        on:reload="reload"
+      >
+        <!-- <p>
+          <a attr:href="entryLink + 'cn/index.html'" target="_blank">Entry</a>
+          <br />
+          <a attr:href="entryLink + '_statics/'" target="_blank">Static</a>
+          <br />
+          <a attr:href="entryLink + 'cn/config.json'" target="_blank">
+            Config.json
+          </a>
+          <br />
+          <a attr:href="entryLink + 'cn/_articles.json'" target="_blank">
+            articles.json
+          </a>
+        </p> -->
+      </article-viewer>
+    </x-else-if>
+  </div>
+
+  <script>
+    export const parent = "./layout.html";
+
+    import { create } from "../src/mdserver.js";
+    import { currentData, initServer, getSummary } from "../src/data.js";
+
+    export default async ({ load }) => {
+      const { open } = await load("@nos/core/fs/system/main.js");
+
+      console.log(currentData);
+
+      return {
+        data: {
+          lang: "", // 展示中的语言
+          langOptions: [],
+          // configData: {},
+          // summarys: [],
+          stage: 0, // 当前的状态；0选择文件夹，1初始化文件，2进入文档调试模式
+        },
+        proto: {
+          async selectDir() {
+            const handle = await open();
+
+            // 确认是否已经创建项目
+            let configyaml = await handle.get("config.yaml").catch(() => null);
+
+            if (!configyaml) {
+              this.stage = 1;
+              return;
+            }
+
+            await initServer({
+              handle,
+            });
+
+            this.reload();
+
+            this.stage = 2;
+          },
+          async reload() {
+            await currentData.server.reload();
+
+            const { langOptions, summarys, target } = await getSummary({
+              lang: "cn",
+            });
+
+            this.langOptions = langOptions;
+
+            this.lang = target.lang;
+
+            const indexPage = target.articles.find(
+              (e) => e.path === "index.html"
+            );
+
+            // 添加首页
+            // summarys.push({
+            //   name: indexPage.title,
+            //   path: indexPage.path,
+            //   ftype: "html",
+            //   url: `${currentData.server.path + "/"}${this.lang}/${
+            //     indexPage.path
+            //   }`,
+            // });
+
+            // this.summarys = summarys;
+          },
+        },
+        attached() {
+          if (currentData.handle) {
+            this.reload();
+
+            this.stage = 2;
+          }
+        },
+      };
+    };
+  </script>
+</template>

@@ -1,0 +1,118 @@
+<template page>
+  <l-m src="@pui/select/select.html"></l-m>
+  <style>
+    :host {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-sizing: border-box;
+      flex-direction: column;
+      height: 100%;
+      padding-bottom: 30vh;
+      text-align: center;
+    }
+    p {
+      font-size: 18px;
+      padding: 0 5vw;
+    }
+  </style>
+  <p>当前文件夹不存在项目文件，是否进行初始化?</p>
+  <div style="display: flex; align-items: center">
+    请确认文档的主要语言：
+    <p-select sync:value="mainLang">
+      <option value="cn">简体中文</option>
+      <option value="t-cn">繁体中文</option>
+    </p-select>
+  </div>
+  <p>
+    在撰写文档时，请您以这种语言为主要表达语言，确保内容的准确性和流畅性。待文档完成后，obook会利用本机的AI系统，自动进行翻译，生成其他语种的文档。
+  </p>
+  <div>
+    <p-button on:click="clickOk">确认初始化</p-button>
+    <p-button variant="outlined" on:click="clickBack">返回</p-button>
+  </div>
+  <script>
+    import yaml from "https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.mjs";
+    import "https://cdn.jsdelivr.net/npm/jszip";
+
+    export default ({ load }) => {
+      return {
+        data: {
+          mainLang: "cn",
+        },
+        watch: {
+          // mainLang(mainLang) {
+          //   console.log("mainLang: ", mainLang);
+          // },
+        },
+        proto: {
+          clickBack() {
+            this.host.stage = 0;
+          },
+          async clickOk() {
+            const handle = this.host._handle;
+
+            await writeInitFile({ handle, mainLang: this.mainLang });
+
+            this.host.initServer();
+          },
+        },
+      };
+    };
+
+    // 写入最初始的文件
+    const writeInitFile = async ({ handle, mainLang }) => {
+      {
+        // 写入快速启动文件文件
+        // 已经支持的语言
+        const usables = ["cn", "t-cn", "en"];
+
+        const zip = new JSZip();
+
+        const startZip = await JSZip.loadAsync(
+          await fetch("/demos/quick-start.zip").then((e) => e.blob())
+        );
+
+        for (let item of Object.values(startZip.files)) {
+          if (item.dir) {
+            continue;
+          }
+
+          // 只写入主体语言的目录
+          const arr = item.name.split("/");
+
+          if (
+            arr.length > 1 &&
+            usables.includes(arr[0]) &&
+            arr[0] !== mainLang
+          ) {
+            continue;
+          }
+
+          const file = await item.async("blob");
+
+          const targetHandle = await handle.get(item.name, {
+            create: "file",
+          });
+
+          await targetHandle.write(file);
+        }
+      }
+
+      {
+        // 写入config.yaml
+        const configData = {
+          version: 1,
+          "mang-lang": mainLang,
+          "available-lang": [mainLang],
+        };
+
+        const configHandle = await handle.get("config.yaml", {
+          create: "file",
+        });
+
+        await configHandle.write(yaml.dump(configData));
+      }
+    };
+  </script>
+</template>
