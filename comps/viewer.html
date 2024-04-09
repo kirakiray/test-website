@@ -1,0 +1,214 @@
+<template component>
+  <l-m
+    src="https://cdn.jsdelivr.net/npm/iconify-icon@2.0.0/dist/iconify-icon.min.js"
+  ></l-m>
+  <l-m src="@pui/button/button.html"></l-m>
+  <l-m src="@pui/button/button-group.html"></l-m>
+  <l-m src="./article-list.html"></l-m>
+  <style>
+    :host {
+      display: block;
+      height: 100%;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .top {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      padding: 8px 8px;
+      background-color: var(--md-sys-color-on-primary);
+      box-shadow: rgba(128, 128, 128, 0.3) 0 0 5px;
+    }
+
+    .top > * {
+      margin: 0 4px;
+    }
+
+    .main {
+      display: flex;
+      flex: 1;
+    }
+
+    .left {
+      width: 250px;
+    }
+
+    .article {
+      position: relative;
+      flex: 1;
+      background-color: var(--md-sys-color-surface);
+    }
+
+    .article textarea,
+    .article iframe {
+      position: absolute;
+      box-sizing: border-box;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      resize: none;
+      border: none;
+      /* background-color: var(--md-sys-color-surface); */
+      outline: none;
+    }
+
+    .reload-btn + p-button {
+      margin-left: auto;
+    }
+  </style>
+  <div class="container">
+    <div class="top">
+      <p-select :value="lang" size="small">
+        <x-fill :value="langOptions">
+          <option attr:value="$data.lang">{{$data.name}}</option>
+        </x-fill>
+      </p-select>
+      <p-button size="small" on:click="emit('reload')" class="reload-btn">
+        <iconify-icon icon="mdi:reload" slot="prefix"></iconify-icon>
+        刷新
+      </p-button>
+      <p-button size="small">
+        <iconify-icon icon="carbon:view-filled" slot="prefix"></iconify-icon>
+        <a attr:href="activeUrl" target="_blank">新标签打开预览</a>
+      </p-button>
+      <p-button size="small" on:click="exportProject">
+        <iconify-icon
+          icon="mdi:calendar-export-outline"
+          slot="prefix"
+        ></iconify-icon>
+        导出
+      </p-button>
+
+      <!-- <p-button-group size="small">
+        <p-button variant="outlined">源代码</p-button>
+        <p-button>预览视图</p-button>
+      </p-button-group> -->
+
+      <!-- <p-button
+        size="small"
+        style="margin-left: 0"
+        on:click="clickSave"
+        attr:disabled="oldFileText === filetext ? '' : null "
+      >
+        <x-if :value="saving">
+          <iconify-icon icon="eos-icons:loading" slot="prefix"></iconify-icon>
+        </x-if>
+        <x-else>
+          <iconify-icon
+            icon="material-symbols:save-outline"
+            slot="prefix"
+          ></iconify-icon>
+        </x-else>
+        保存
+      </p-button> -->
+    </div>
+    <div class="main">
+      <div class="left">
+        <article-list on:click-item="clickSummaryItem"></article-list>
+      </div>
+      <div class="article">
+        <!-- <slot></slot> -->
+        <!-- <textarea sync:value="filetext"></textarea> -->
+        <!-- <iframe
+          id="preview-frame"
+          attr:src="activeUrl + '?onlyview=1'"
+        ></iframe> -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    export default async ({ load }) => {
+      const { confirm } = await load("@pui/dialog/command.js");
+      const { default: enqueue } = await load(`@pui/snackbar/enqueue.js`);
+      const { exportProject } = await load("../src/exportmd.js");
+      const { currentData, initServer } = await load("../src/data.js");
+
+      return {
+        tag: "article-viewer",
+        data: {
+          lang: "", // 展示中的语言
+          langOptions: [], // 可用语言的选项
+          activeUrl: "", // 激活中的url
+          oldFileText: "", // 选中文件未保存前的文本
+          filetext: "", // 选中中的文本内容
+          _targetHandle: null, // 选中文件的控制器
+          saving: false, // 是否保存中
+        },
+        proto: {
+          async exportProject() {
+            await exportProject({
+              server: currentData.server,
+            });
+          },
+          async clickSave() {
+            if (this.saving || this.oldFileText === this.filetext) {
+              return;
+            }
+
+            this.saving = true;
+            await this._targetHandle.write(this.filetext);
+            this.oldFileText = this.filetext;
+            this.saving = false;
+            enqueue({
+              content: "保存成功",
+            });
+          },
+          async clickSummaryItem({
+            data: { item: data, handle: targetHandle },
+          }) {
+            if (data.list) {
+              return;
+            }
+
+            if (this.oldFileText !== this.filetext) {
+              const result = await confirm({
+                title: "未保存",
+                content: `修改的内容尚未保存，是否切换到另一个页面？`,
+              });
+
+              if (result === false) {
+                return;
+              }
+            }
+
+            this._targetHandle = targetHandle;
+            const filetext = await targetHandle.text();
+
+            this.activeUrl = data.url;
+
+            this.oldFileText = this.filetext = filetext;
+          },
+        },
+        watch: {
+          activeUrl(activeUrl) {
+            if (!activeUrl) {
+              this.shadow.$(".article").html = "";
+              return;
+            }
+
+            this.shadow.$(".article").html = `<iframe src="${
+              activeUrl + "?onlyview=1"
+            } "></iframe>`;
+          },
+        },
+        attached() {
+          window.addEventListener("keydown", (e) => {
+            if (e.metaKey && e.key === "s") {
+              e.preventDefault();
+              this.clickSave();
+            }
+          });
+        },
+      };
+    };
+  </script>
+</template>
