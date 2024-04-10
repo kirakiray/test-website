@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Static Article</title>
+    <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.4.12/dist/ofa.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/kirakiray/ofa.js@4.4.12/libs/scsr/dist/scsr.min.js"></script>
+    <!-- <script
+      type="module"
+      src="https://cdn.jsdelivr.net/gh/ofajs/Punch-UI@0.1.8/init.js"
+    ></script> -->
+    <script type="module" src="http://127.0.0.1:5548/init.js"></script>
+    <link rel="stylesheet" href="./styles/index.css" />
+    <script>
+      const configUrl = null;
+      const DOCROOT = null;
+      const langRoot = new URL(DOCROOT, location).href;
+    </script>
+  </head>
+  <body>
+    <div cover-loading></div>
+    <o-app src="./app-config.js">
+      <template page>
+        <l-m src="./comps/article-toc.html"></l-m>
+        <l-m src="./comps/article-bottom.html"></l-m>
+        <style>
+          :host {
+            display: block;
+            flex-shrink: 0;
+          }
+
+          .highlight-text {
+            color: var(--md-sys-color-primary);
+            font-weight: bold;
+          }
+        </style>
+        <link rel="stylesheet" href="./styles/github-markdown.css" />
+
+        <article-toc>
+          <article class="markdown-body">{[content]}</article>
+          <article-bottom :path="selfPath"></article-bottom>
+        </article-toc>
+
+        <script>
+          let parent = "./pages/layout.html";
+          
+          if (new URLSearchParams(location.search).get("onlyview")) {
+            parent = null;
+          }
+
+          export { parent };
+
+          const selfPath = null;
+
+          export default async ({ load, url }) => {
+            let initPath;
+            try {
+              const d = await load("../_statics/data.js");
+              initPath = d.initPath;
+            } catch (err) {}
+
+            return {
+              data: {
+                selfPath,
+              },
+              proto: {
+                initSearch(oUrl) {
+                  // 是否跳转到某个段落
+                  const params = new URL(oUrl || url).searchParams;
+                  const pid = params.get("pid");
+                  const search = params.get("search");
+                  if (pid) {
+                    setTimeout(() => {
+                      const target = this.shadow.$(".markdown-body")[pid];
+                      target.ele.scrollIntoView();
+
+                      if (search) {
+                        wrapHighlight(target.ele, search);
+                      }
+                    }, 300);
+                  }
+                },
+              },
+              attached() {
+                const mainInner = this.parent.shadow.$(".main-inner .article");
+                if (mainInner && mainInner.ele.scrollTop > 0) {
+                  mainInner.ele.scrollTop = 0;
+                }
+                initPath && initPath(selfPath);
+
+                setTimeout(() => {
+                  $("body").emit("page-loadend");
+                }, 300);
+
+                this.initSearch();
+              },
+            };
+          };
+
+          const wrapHighlight = (target, search) => {
+            Array.from(target.childNodes).forEach((e) => {
+              if (e instanceof Text) {
+                const { textContent } = e;
+                if (textContent.includes(search)) {
+                  // 将高亮代码替换原来的文本
+                  const frag = $("<span></span>");
+                  const sarr = textContent.split(search);
+                  frag.html = sarr.join(
+                    `<span class="highlight-text">${search}</span>`
+                  );
+                  e.parentNode.insertBefore(frag.ele, e);
+                  e.remove();
+                }
+              } else if (e.childNodes && e.childNodes.length) {
+                wrapHighlight(e, search);
+              }
+            });
+          };
+        </script>
+      </template>
+    </o-app>
+
+    <script type="module">
+      if (configUrl === null) {
+        $("[cover-loading]").remove();
+      }
+      $("body").one("page-loadend", () => {
+        $("[cover-loading]").classList.add("fadeout");
+        setTimeout(() => {
+          $("[cover-loading]").remove();
+        }, 300);
+      });
+
+      if (!window.customElements) {
+        if (/zh\-/.test(navigator.language)) {
+          document.body.innerHTML = `你的浏览器太旧了，请更新或升级你的浏览器。`;
+        } else {
+          document.body.innerHTML = `Your browser is too old, please upgrade or change your browser.`;
+        }
+      }
+    </script>
+  </body>
+</html>

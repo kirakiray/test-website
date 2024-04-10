@@ -1,0 +1,15 @@
+@import url(./public.css);
+@import url(./github-markdown.css);
+html,
+body {
+  padding: 0;
+  margin: 0;
+  height: 100%;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+o-app {
+  height: 100%;
+}

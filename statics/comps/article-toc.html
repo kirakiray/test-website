@@ -1,0 +1,233 @@
+<template component>
+  <l-m src="@pui/list/list.html"></l-m>
+  <style>
+    :host {
+      display: block;
+    }
+    .container {
+      display: flex;
+    }
+    .toc {
+      flex: 0 0 250px;
+      margin-left: auto;
+      padding: 16px 8px;
+    }
+    .toc-inner {
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      /* border-left: var(--md-sys-color-primary-container) solid 1px; */
+    }
+
+    p-list-item {
+      position: relative;
+      font-size: 15px;
+      margin: 0;
+      border-left: var(--md-sys-color-primary-container) solid 1px;
+      font-weight: 400;
+    }
+
+    p-list-item[active-item] {
+      color: var(--md-sys-color-primary);
+      font-weight: 500;
+    }
+    p-list-item[active-item]:before {
+      position: absolute;
+      left: -1px;
+      top: 0;
+      width: 1px;
+      height: 100%;
+      content: "";
+      background-color: var(--md-sys-color-primary);
+    }
+    [oritag="h2"] div {
+      font-size: 14px;
+      padding-left: 4px;
+    }
+    [oritag="h3"] div {
+      font-size: 14px;
+      padding-left: 8px;
+    }
+    [oritag="h4"] div,
+    [oritag="h5"] div {
+      font-size: 13px;
+      padding-left: 12px;
+    }
+    ::slotted(article) {
+      flex: 1;
+      /* min-height: calc(100vh - 60px); */
+      min-height: calc(100vh - 120px);
+    }
+  </style>
+  <div class="container">
+    <div style="flex: 1; flex-shrink: 0">
+      <slot></slot>
+    </div>
+    <x-if :value="heads.length">
+      <div class="toc">
+        <div class="toc-inner">
+          <p-list>
+            <x-fill :value="heads">
+              <p-list-item
+                button
+                attr:oritag="$data.t"
+                attr:data-mark="$data.mark"
+                attr:active-item="$host.isAcitve($data)"
+                on:click="$host.clickTocItem($data)"
+                on:mouseenter="$host.enterItem($data)"
+                on:mouseout="$host.outItem($data)"
+              >
+                <div>{{$data.val}}</div>
+              </p-list-item>
+            </x-fill>
+          </p-list>
+        </div>
+      </div>
+    </x-if>
+  </div>
+  <inject-host>
+    <style :html="hoverStyle"></style>
+  </inject-host>
+  <script>
+    export default async ({ load }) => {
+      return {
+        tag: "article-toc",
+        data: {
+          heads: [],
+          shows: [], // 在屏幕中显示的对应 head 的元素
+          hoverStyle: "",
+        },
+        proto: {
+          enterItem(data) {
+            this.hoverStyle = `[belong="${data.mark}"]{background:var(--md-ref-palette-translucent-primary60);transition:all ease .3s}`;
+          },
+          outItem(data) {
+            this.hoverStyle = "";
+          },
+          isAcitve(data) {
+            return this.shows.includes(data.mark) ? "" : null;
+          },
+          clickTocItem(data) {
+            const target = this.$(`[belong="${data.mark}"]`);
+
+            if (target) {
+              target.ele.scrollIntoView();
+            }
+          },
+          fixRightTocScroll() {
+            clearTimeout(this._stimer);
+            this._stimer = setTimeout(() => {
+              const tocContainer = this.shadow.$(".toc-inner")?.ele;
+              const activeItemEls = this.shadow.all(".toc-inner [active-item]");
+
+              // 存在滚动条时才进行修正
+              if (
+                tocContainer.scrollHeight > tocContainer.clientHeight &&
+                activeItemEls.length
+              ) {
+                const firstActiveItem = activeItemEls[0].ele;
+                const lastActiveItem = activeItemEls.slice(-1)[0].ele;
+
+                if (
+                  lastActiveItem.offsetTop + lastActiveItem.offsetHeight >
+                  tocContainer.clientHeight
+                ) {
+                  // 向下滚动超出范围修正滚动
+                  tocContainer.scrollTop =
+                    lastActiveItem.offsetTop - tocContainer.clientHeight + 50;
+                } else if (tocContainer.scrollTop > firstActiveItem.offsetTop) {
+                  // 向上滚动超出范围
+                  tocContainer.scrollTop = firstActiveItem.offsetTop;
+                }
+              }
+            }, 50);
+          },
+          init() {
+            if (this._obs) {
+              this._obs.disconnect();
+            }
+
+            if (
+              this.$(`input[name="hide-toc"]`) ||
+              new URLSearchParams(location.search).get("onlyview")
+            ) {
+              this.heads.splice(0, 1000);
+              return;
+            }
+
+            const observer = (this._obs = new IntersectionObserver(
+              (entries) => {
+                const cansees = [];
+                const disps = [];
+                // 如果目标元素在可视区域内
+                entries.forEach((ioe) => {
+                  if (ioe.isIntersecting) {
+                    cansees.push(ioe.target);
+                  } else {
+                    disps.push(ioe.target);
+                  }
+                });
+
+                if (this._showEls === undefined) {
+                  this._showEls = new Set(cansees);
+                } else {
+                  disps.forEach((e) => this._showEls.delete(e));
+                  cansees.forEach((e) => this._showEls.add(e));
+                }
+
+                this.shows = Array.from(
+                  new Set(
+                    Array.from(this._showEls).map((e) =>
+                      e.getAttribute("belong")
+                    )
+                  )
+                ).sort((a, b) => {
+                  return (
+                    Number(a.split("-").slice(-1)[0]) -
+                    Number(b.split("-").slice(-1)[0])
+                  );
+                });
+
+                this.fixRightTocScroll();
+              }
+            ));
+
+            const heads = [];
+
+            let prevHeadMark = "";
+            // 逐段扫描，赋予所有段落所归属的标题，并拿出标题
+            this.$("article").forEach((lineEl, index) => {
+              if (lineEl.is("h1,h2,h3,h4,h5")) {
+                const headMark = `${lineEl.text}-${this._mid}-${index}`;
+                heads.push({
+                  val: lineEl.text,
+                  t: lineEl.tag,
+                  mark: headMark,
+                });
+
+                prevHeadMark = headMark;
+              }
+
+              lineEl.attr("belong", prevHeadMark);
+
+              // 开始观察目标元素
+              observer.observe(lineEl.ele);
+            });
+
+            this.heads = heads;
+          },
+        },
+        attached() {
+          this._mid = Math.random().toString(32).slice(8);
+          this.init();
+        },
+        detached() {
+          if (this._obs) {
+            this._obs.disconnect();
+          }
+        },
+      };
+    };
+  </script>
+</template>

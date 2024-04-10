@@ -1,0 +1,126 @@
+<template page>
+  <link rel="stylesheet" href="../styles/public.css" />
+  <l-m src="@pui/tabs/tabs.html"></l-m>
+  <l-m src="@pui/drawer/drawer.html"></l-m>
+  <l-m src="../comps/book-nav.html"></l-m>
+  <l-m src="../comps/left-list.html"></l-m>
+  <l-m src="../comps/top-tabs.html"></l-m>
+  <style>
+    :host {
+      display: contents;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .main {
+      position: relative;
+      flex: 1;
+      width: 100%;
+    }
+    .main-inner {
+      display: flex;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+    }
+    .left {
+      position: relative;
+      /* width: 250px; */
+      width: 0;
+      /* margin: 4px 0 0 8px; */
+      margin: 4px 0 0 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: all ease 0.3s;
+    }
+    .container.show-left .left {
+      width: 250px;
+      margin-left: 8px;
+      opacity: 1;
+    }
+    .left-inner {
+      box-sizing: border-box;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 250px;
+      height: 100%;
+      padding-right: 16px;
+      overflow: auto;
+    }
+    .left-inner:after {
+      display: block;
+      content: "";
+      height: 20px;
+    }
+    .article {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: auto;
+    }
+    p-drawer::part(main) {
+      padding: 8px 16px 8px 8px;
+    }
+  </style>
+  <div class="container" class:show-left="showLeft.value">
+    <book-nav on:click-drawer="openDrawer = true">
+      <top-tabs class="hide-phone"></top-tabs>
+    </book-nav>
+    <p-drawer sync:open="openDrawer" auto-close>
+      <top-tabs type="mobile"></top-tabs>
+      <left-list></left-list>
+    </p-drawer>
+    <div class="main-size main">
+      <div class="main-inner">
+        <div class="left hide-phone">
+          <div class="left-inner">
+            <div style="height: 8px"></div>
+            <left-list></left-list>
+          </div>
+        </div>
+        <div class="article">
+          <slot></slot>
+          <footer></footer>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    import { showLeft, configs } from "../data.js";
+
+    export default {
+      data: {
+        openDrawer: false,
+        showLeft: {},
+      },
+      async attached() {
+        this.showLeft = showLeft;
+
+        const configHref = new URL(configUrl, location).href;
+
+        if (configs.footer) {
+          const footerHref = new URL(configs.footer, configHref).href;
+          const footerContent = await fetch(footerHref).then((e) => e.text());
+          const tempArticle = $(`<template>${footerContent}</template>`)
+            .$("o-app template[page]")
+            .$(".markdown-body");
+
+          const shadow = this.shadow
+            .$("footer")
+            .ele.attachShadow({ mode: "open" });
+
+          shadow.innerHTML = tempArticle.html;
+        }
+      },
+      detached() {
+        this.showLeft = {};
+      },
+    };
+  </script>
+</template>
