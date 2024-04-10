@@ -1,10 +1,6 @@
 var http = require("http");
 
 var server = http.createServer(function (req, res) {
-  if (req.method === "OPTIONS") {
-    debugger;
-  }
-
   var proxyReq = http.request(
     {
       hostname: "localhost",
